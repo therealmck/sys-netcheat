@@ -14,22 +14,15 @@ I am in no way responsible for any damage that may or may not happen to your swi
 
 ---
 
+The original version of this seems to no longer be in development, so I forked it to get it working again and add more features.
+
 This is an open-source cheat-engine for the nintendo switch.
 
-It requires a hacked switch (recommended configuration is current kosmos).
+It requires a hacked switch (recommended configuration is current Atmosphere, not tested on other CFWs.).
 
-To use this first the `sys-netcheat.kip` from the [release](https://github.com/jakibaki/sys-netcheat/releases/) to the `modules`-folder of your sdcard and add the line `kip1=modules/sys-netcheat.kip` to the `hekate_ipl.ini` as well.
+To use this, download the ZIP from the latest [release](https://github.com/therealmck/sys-netcheat/releases/) and extract it to the root of your SD Card.
 
-It will look somewhat like this:
-
-```
-...
-[CFW]
-kip1=...
-kip1=modules/sys-netcheat.kip
-debugmode=1
-...
-```
+You can also download the NSP and install it manually. Place the NSP in /atmosphere/contents/430000000000000A and rename it to exefs.nsp. Then, make a new folder called "flags", and create a file in there called "boot2.flag".
 
 After installing simply boot your switch, start a game/homebrew and run
 
@@ -37,27 +30,11 @@ After installing simply boot your switch, start a game/homebrew and run
 nc IP_OF_YOUR_SWITCH 5555
 ```
 
-in the terminal on your computer. You can find a windows version [here](https://eternallybored.org/misc/netcat/) (untested).
+in the terminal on your computer. If you don't have netcat installed, install it with `sudo apt-get install netcat`. If you're on Windows, use cygwin or WSL.
 
-You'll be greeted by this:
+You can run "help" to see a list of commands. Here's an example of how to use it:
 
-```
-Welcome to netcheat!
-This needs an atmos-base >= 0.8.2
-> help
-Commands:
-    help                                 | Shows this text
-    ssearch u8/u16/u32/u64 value         | Starts a search with 'value' as the starting-value
-    csearch value                        | Searches the hits of the last search for the new value
-    poke address u8/u16/u32/u64 value    | Sets the memory at address to value
-    afreeze address u8/u16/u32/u64 value | Freezes the memory at address to value
-    lfreeze                              | Lists all frozen values
-    dfreeze index                        | Unfreezes the memory at index
-```
-
----
-
-As an example I'll show you how to change the number of bananas in botw (the values will be different for you!)
+I'll show you how to change the number of bananas in botw (the values will be different for you!)
 
 Right now I have `353` Mighty Bananas
 ```
@@ -83,13 +60,16 @@ This is a lot better. If there are stil too many hits you should repeat the `cse
 Now we'll poke the values to find the one that we actually want and check if any change occured (in zelda closing and reopening the inventory is necessary in order to see the change).
 
 ```
-> poke 33bb64a888 u32 500
-> poke 344d109b10 u32 500
-> poke 344dd0c050 u32 500
-> poke 3456a577d8 u32 500
+> pokesearch 500
 ```
 
-The last one was the one we wanted!
+This pokes every address in the last search. Be very careful with this if there's a lot of addresses in the search.
+
+You can also poke addresses individually, e.g:
+
+```
+> poke 3456a577d8 u32 500
+```
 
 ![screeshot](/screenshot.jpg?raw=true)
 
@@ -108,3 +88,16 @@ If we want to unfreeze the value we just need to run
 ```
 
 And the value will be unfrozen.
+
+---
+
+# Troubleshooting
+
+## 'nc' is not recognized as an internal or external command, operable program or batch file.
+You are trying to use netcat through the Windows command prompt. Install cygwin or WSL to use a Linux command line.
+
+## Error code f401
+This means something else is using the debugger. Disable any cheat programs use have installed on your Switch, and try launching the game while holding L to disable Atmosphere's built-in cheat system.
+
+## Netcat fails silently
+This means it couldn't connect. Make sure your syntax is correct, that sys-netcheat is properly installed, and that your PC and Switch are on the same network.

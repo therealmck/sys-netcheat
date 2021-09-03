@@ -74,7 +74,7 @@ enum
 char *valtypes[] = {"none", "u8", "u16", "u32", "u64"};
 
 int search = VAL_NONE;
-#define SEARCH_ARR_SIZE 500000
+#define SEARCH_ARR_SIZE 2000000
 u64 searchArr[SEARCH_ARR_SIZE];
 int searchSize;
 
@@ -87,7 +87,7 @@ int attach()
     if (debughandle != 0)
         svcCloseHandle(debughandle);
     u64 pids[300];
-    u32 numProc;
+    s32 numProc;
     svcGetProcessList(&numProc, pids, 300);
     u64 pid = pids[numProc - 1];
 
@@ -97,6 +97,9 @@ int attach()
         printf("Couldn't open the process (Error: %x)\r\n"
                "Make sure that you actually started a game.\r\n",
                rc);
+
+        printf("If you have started a game, it's possible another program is using the debugger.\r\n"
+               "Try disabling any cheat programs, or disable Atmosphere's cheat system by holding L while starting the game.\r\n");
         return 1;
     }
     return 0;
@@ -205,13 +208,15 @@ int argmain(int argc, char **argv)
 
     if (!strcmp(argv[0], "ssearch") || !strcmp(argv[0], "s"))
     {
-        if (argc != 3)
+        if (argc != 4)
             goto help;
 
         u8 u8query = 0;
         u16 u16query = 0;
         u32 u32query = 0;
         u64 u64query = 0;
+
+        u8 page = strtoul(argv[3], NULL, 10) - 1;
 
         if (!strcmp(argv[1], "u8"))
         {
@@ -243,6 +248,10 @@ int argmain(int argc, char **argv)
 
         u64 lastaddr = 0;
         void *outbuf = malloc(0x40000);
+
+
+
+
         do
         {
             lastaddr = meminfo.addr;
@@ -267,11 +276,13 @@ int argmain(int argc, char **argv)
                         u8 *u8buf = (u8 *)outbuf;
                         for (u64 i = 0; i < chunksize / sizeof(u8); i++)
                         {
-                            if (u8buf[i] == u8query && searchSize < SEARCH_ARR_SIZE)
+                            if (u8buf[i] == u8query && searchSize < ((page + 1) * SEARCH_ARR_SIZE) && searchSize >= (page * SEARCH_ARR_SIZE))
                             {
-                                printf("Got a hit at %lx!\r\n", curaddr + i * sizeof(u8));
-                                searchArr[searchSize++] = curaddr + i * sizeof(u8);
+                                searchArr[(searchSize++ - (page * SEARCH_ARR_SIZE))] = curaddr + i * sizeof(u8);
                             }
+
+                            if (u8buf[i] == u8query && searchSize < (page * SEARCH_ARR_SIZE))
+                                searchSize++;
                         }
                     }
 
@@ -280,11 +291,13 @@ int argmain(int argc, char **argv)
                         u16 *u16buf = (u16 *)outbuf;
                         for (u64 i = 0; i < chunksize / sizeof(u16); i++)
                         {
-                            if (u16buf[i] == u16query && searchSize < SEARCH_ARR_SIZE)
+                            if (u16buf[i] == u16query && searchSize < ((page + 1) * SEARCH_ARR_SIZE) && searchSize >= (page * SEARCH_ARR_SIZE))
                             {
-                                printf("Got a hit at %lx!\r\n", curaddr + i * sizeof(u16));
-                                searchArr[searchSize++] = curaddr + i * sizeof(u16);
+                                searchArr[(searchSize++ - (page * SEARCH_ARR_SIZE))] = curaddr + i * sizeof(u16);
                             }
+
+                            if (u16buf[i] == u8query && searchSize < (page * SEARCH_ARR_SIZE))
+                                searchSize++;
                         }
                     }
 
@@ -293,11 +306,13 @@ int argmain(int argc, char **argv)
                         u32 *u32buf = (u32 *)outbuf;
                         for (u64 i = 0; i < chunksize / sizeof(u32); i++)
                         {
-                            if (u32buf[i] == u32query && searchSize < SEARCH_ARR_SIZE)
+                            if (u32buf[i] == u32query && searchSize < ((page + 1) * SEARCH_ARR_SIZE) && searchSize >= (page * SEARCH_ARR_SIZE))
                             {
-                                printf("Got a hit at %lx!\r\n", curaddr + i * sizeof(u32));
-                                searchArr[searchSize++] = curaddr + i * sizeof(u32);
+                                searchArr[(searchSize++ - (page * SEARCH_ARR_SIZE))] = curaddr + i * sizeof(u32);
                             }
+
+                            if (u32buf[i] == u8query && searchSize < (page * SEARCH_ARR_SIZE))
+                                searchSize++;
                         }
                     }
 
@@ -306,21 +321,33 @@ int argmain(int argc, char **argv)
                         u64 *u64buf = (u64 *)outbuf;
                         for (u64 i = 0; i < chunksize / sizeof(u64); i++)
                         {
-                            if (u64buf[i] == u64query && searchSize < SEARCH_ARR_SIZE)
+                            if (u64buf[i] == u64query && searchSize < ((page + 1) * SEARCH_ARR_SIZE) && searchSize >= (page * SEARCH_ARR_SIZE))
                             {
-                                printf("Got a hit at %lx!\r\n", curaddr + i * sizeof(u64));
-                                searchArr[searchSize++] = curaddr + i * sizeof(u64);
+                                searchArr[(searchSize++ - (page * SEARCH_ARR_SIZE))] = curaddr + i * sizeof(u64);
                             }
+
+                            if (u64buf[i] == u8query && searchSize < (page * SEARCH_ARR_SIZE))
+                                searchSize++;
                         }
                     }
 
                     curaddr += chunksize;
                 }
             }
-        } while (lastaddr < meminfo.addr + meminfo.size && searchSize < SEARCH_ARR_SIZE);
-        if (searchSize >= SEARCH_ARR_SIZE)
-        {
-            printf("There might be more after this, try getting the variable to a number that's less 'common'\r\n");
+        } while (lastaddr < meminfo.addr + meminfo.size && searchSize < SEARCH_ARR_SIZE * (page+1));
+
+
+        searchSize = searchSize - (page * SEARCH_ARR_SIZE);
+
+        if (searchSize <= 100) {
+            // Print all the addresses
+            for (int i = 0; i < searchSize; i++) {
+                printf("Got a hit at %lx!\r\n", searchArr[i]);
+            }
+        } else {
+            printf("Too many hits to display! Try narrowing down the search with csearch. Hits: %d\r\n", searchSize);
+            if (searchSize == SEARCH_ARR_SIZE)
+                printf("The value you're looking for might not be on this page. If csearch doesn't get a good value, try changing the page of results.\r\n");
         }
         free(outbuf);
 
@@ -368,7 +395,6 @@ int argmain(int argc, char **argv)
                 svcReadDebugProcessMemory(&val, debughandle, searchArr[i], sizeof(u8));
                 if (val == u8NewVal)
                 {
-                    printf("Got a hit at %lx!\r\n", searchArr[i]);
                     searchArr[newSearchSize++] = searchArr[i];
                 }
             }
@@ -378,7 +404,6 @@ int argmain(int argc, char **argv)
                 svcReadDebugProcessMemory(&val, debughandle, searchArr[i], sizeof(u16));
                 if (val == u16NewVal)
                 {
-                    printf("Got a hit at %lx!\r\n", searchArr[i]);
                     searchArr[newSearchSize++] = searchArr[i];
                 }
             }
@@ -388,7 +413,6 @@ int argmain(int argc, char **argv)
                 svcReadDebugProcessMemory(&val, debughandle, searchArr[i], sizeof(u32));
                 if (val == u32NewVal)
                 {
-                    printf("Got a hit at %lx!\r\n", searchArr[i]);
                     searchArr[newSearchSize++] = searchArr[i];
                 }
             }
@@ -398,13 +422,76 @@ int argmain(int argc, char **argv)
                 svcReadDebugProcessMemory(&val, debughandle, searchArr[i], sizeof(u64));
                 if (val == u64NewVal)
                 {
-                    printf("Got a hit at %lx!\r\n", searchArr[i]);
                     searchArr[newSearchSize++] = searchArr[i];
                 }
             }
         }
 
         searchSize = newSearchSize;
+
+        if (searchSize <= 100) {
+            // Print all the addresses
+            for (int i = 0; i < searchSize; i++) {
+                printf("Got a hit at %lx!\r\n", searchArr[i]);
+            }
+        } else {
+            printf("Too many hits to display! Try narrowing down the search with csearch. Hits: %d\r\n", searchSize);
+        }
+
+        return 0;
+    }
+
+    if (!strcmp(argv[0], "pokesearch") || !strcmp(argv[0], "ps"))
+    {
+        if (search == VAL_NONE) {
+            printf("You need to start a search first!");
+            return 0;
+        }
+
+        if (argc != 2)
+            goto help;
+            
+
+        u64 addr;
+
+        if (search == VAL_U8)
+        {
+            u8 val = strtoul(argv[1], NULL, 10);
+
+            for (int i = 0; i < searchSize; i++) {
+                addr = searchArr[i];
+                svcWriteDebugProcessMemory(debughandle, &val, addr, sizeof(u8));
+            }
+        }
+        else if (search == VAL_U16)
+        {
+            u16 val = strtoul(argv[1], NULL, 10);
+
+            for (int i = 0; i < searchSize; i++) {
+                addr = searchArr[i];
+                svcWriteDebugProcessMemory(debughandle, &val, addr, sizeof(u16));
+            }
+        }
+        else if (search == VAL_U32)
+        {
+            u32 val = strtoul(argv[1], NULL, 10);
+
+            for (int i = 0; i < searchSize; i++) {
+                addr = searchArr[i];
+                svcWriteDebugProcessMemory(debughandle, &val, addr, sizeof(u32));
+            }
+        }
+        else if (search == VAL_U64)
+        {
+            u64 val = strtoul(argv[1], NULL, 10);
+
+            for (int i = 0; i < searchSize; i++) {
+                addr = searchArr[i];
+                svcWriteDebugProcessMemory(debughandle, &val, addr, sizeof(u64));
+            }
+        }
+        else
+            goto help;
         return 0;
     }
 
@@ -546,9 +633,10 @@ int argmain(int argc, char **argv)
 help:
     printf("Commands:\r\n"
            "    help                                 | Shows this text\r\n"
-           "    ssearch u8/u16/u32/u64 value         | Starts a search with 'value' as the starting-value\r\n"
+           "    ssearch u8/u16/u32/u64 value page    | Starts a search with 'value' as the starting-value\r\n"
            "    csearch value                        | Searches the hits of the last search for the new value\r\n"
            "    poke address u8/u16/u32/u64 value    | Sets the memory at address to value\r\n"
+           "    pokesearch value                     | Sets the memory at all addresses in last search to value\r\n"
            "    peek address u8/u16/u32/u64          | Gets the value at the address\r\n"
            "    afreeze address u8/u16/u32/u64 value | Freezes the memory at address to value\r\n"
            "    lfreeze                              | Lists all frozen values\r\n"
@@ -568,7 +656,7 @@ int main()
     mutexInit(&actionLock);
 
     Thread freezeThread;
-    Result rc = threadCreate(&freezeThread, freezeLoop, NULL, 0x4000, 49, 3);
+    Result rc = threadCreate(&freezeThread, freezeLoop, NULL, NULL, 0x4000, 49, 3);
     if (R_FAILED(rc))
         fatalLater(rc);
     rc = threadStart(&freezeThread);
